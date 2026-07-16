@@ -47,7 +47,7 @@ export async function getCurrentUser() {
   if (!token) return null;
   await ensureDatabase();
   const [result] = await getDb()
-    .select({ id: users.id, email: users.email })
+    .select({ id: users.id, username: users.username })
     .from(sessions)
     .innerJoin(users, eq(sessions.userId, users.id))
     .where(and(eq(sessions.tokenHash, tokenHash(token)), gt(sessions.expiresAt, new Date())))

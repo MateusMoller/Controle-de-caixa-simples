@@ -8,12 +8,12 @@ export async function POST(request: Request) {
     await ensureDatabase();
     const payload = await request.json() as { username?: string; password?: string };
     const username = payload.username?.trim().toLowerCase() ?? "";
-    const [user] = await getDb().select().from(users).where(eq(users.email, username)).limit(1);
+    const [user] = await getDb().select().from(users).where(eq(users.username, username)).limit(1);
     if (!user || !(await verifyPassword(payload.password ?? "", user.passwordHash))) {
       return Response.json({ error: "Usuário ou senha incorretos." }, { status: 401 });
     }
     await createSession(user.id);
-    return Response.json({ user: { id: user.id, email: user.email } });
+    return Response.json({ user: { id: user.id, username: user.username } });
   } catch {
     return Response.json({ error: "Não foi possível entrar agora." }, { status: 500 });
   }
