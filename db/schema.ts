@@ -15,3 +15,13 @@ export const entries = sqliteTable("entries", {
   interestRateBps: integer("interest_rate_bps").notNull().default(0),
   paid: integer("paid", { mode: "boolean" }).notNull().default(false),
 });
+
+export const incomeTypes = sqliteTable("income_types", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  name: text("name").notNull().unique(),
+});
+
+export const expenseTypes = sqliteTable("expense_types", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  name: text("name").notNull().unique(),
+});
