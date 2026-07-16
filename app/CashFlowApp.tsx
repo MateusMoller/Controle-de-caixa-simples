@@ -31,7 +31,7 @@ export function CashFlowApp({view}:{view:View}){
   const titles={dashboard:["Visão geral","Acompanhe o presente e o futuro do seu caixa"],entries:["Lançamentos","Organize entradas, saídas e parcelas"],types:["Configurações","Organize os tipos de entradas e saídas"],history:["Histórico","Veja quem adicionou cada lançamento"]};
   return <div className="appLayout">
     <aside className={`sidebar ${mobileNav?"show":""}`}>
-      <Link className="brand" href="/dashboard"><span>c</span> clara fluxo</Link>
+      <Link className="brand" href="/dashboard"><span>f</span> Fluxo Claro</Link>
       <nav><p>MENU PRINCIPAL</p><Link className={view==="dashboard"?"active":""} href="/dashboard"><i>⌂</i> Dashboard</Link><Link className={view==="entries"?"active":""} href="/lancamentos"><i>⇄</i> Lançamentos</Link><Link className={view==="history"?"active":""} href="/historico"><i>◷</i> Histórico</Link><p className="secondaryNavLabel">CONFIGURAÇÕES</p><Link className={view==="types"?"active":""} href="/tipos-de-movimentacao"><i>≡</i> Tipos de movimentação</Link></nav>
       <div className="profile"><div className="avatar">{userName.slice(0,2).toUpperCase()}</div><div><b>{userName}</b><span>Usuário</span></div><button className="logoutButton" onClick={logout} aria-label="Sair" title="Sair">Sair</button></div>
     </aside>

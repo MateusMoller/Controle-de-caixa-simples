@@ -39,7 +39,7 @@ export default function LoginPage() {
   }
 
   return <main className="loginPage"><section className="loginCard">
-    <div className="loginBrand"><span>c</span><b>clara fluxo</b></div>
+    <div className="loginBrand"><span>f</span><b>Fluxo Claro</b></div>
     <p className="eyebrow">ACESSO SEGURO</p>
     <h1>Bem-vindo de volta</h1>
     <p className="loginIntro">Escolha seu usuário e informe a senha para acessar o controle de caixa.</p>
