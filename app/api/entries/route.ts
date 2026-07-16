@@ -1,6 +1,7 @@
 import { asc } from "drizzle-orm";
 import { ensureDatabase, getDb } from "../../../db";
 import { entries } from "../../../db/schema";
+import { requireApiUser } from "../../../lib/auth";
 
 function parseMoney(value: unknown) {
   const normalized = String(value ?? "").trim().replace(/\s/g, "").replace(/\.(?=\d{3}(?:\D|$))/g, "").replace(",", ".");
@@ -22,6 +23,7 @@ function addMonths(dateText: string, offset: number) {
 export async function GET() {
   try {
     await ensureDatabase();
+    if (!(await requireApiUser())) return Response.json({ error: "Não autorizado." }, { status: 401 });
     const rows = await getDb().select().from(entries).orderBy(asc(entries.dueDate), asc(entries.id));
     return Response.json({ entries: rows });
   } catch (error) {
@@ -32,6 +34,7 @@ export async function GET() {
 export async function POST(request: Request) {
   try {
     await ensureDatabase();
+    if (!(await requireApiUser())) return Response.json({ error: "Não autorizado." }, { status: 401 });
     const payload = await request.json() as Record<string, unknown>;
     const description = String(payload.description ?? "").trim();
     const contact = String(payload.contact ?? "").trim();

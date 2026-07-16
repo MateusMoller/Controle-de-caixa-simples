@@ -26,6 +26,7 @@ export function CashFlowApp({view}:{view:View}){
   const maxChart=Math.max(1,...evolution.flatMap(e=>[e.income,e.expense]));
   async function submit(event:FormEvent<HTMLFormElement>){event.preventDefault();setError("");const form=new FormData(event.currentTarget);const response=await fetch("/api/entries",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify(Object.fromEntries(form))});const data=await response.json();if(!response.ok)return setError(data.error||"Confira os dados e tente novamente.");setEntries(c=>[...c,...data.entries]);setMonth(String(form.get("dueDate")).slice(0,7));setOpen(false)}
   async function togglePaid(entry:Entry){const r=await fetch(`/api/entries/${entry.id}`,{method:"PATCH",headers:{"content-type":"application/json"},body:JSON.stringify({paid:!entry.paid})});if(r.ok)setEntries(c=>c.map(i=>i.id===entry.id?{...i,paid:!i.paid}:i))}
+  async function logout(){await fetch("/api/auth/logout",{method:"POST"});window.location.href="/login"}
   const monthDate=new Date(`${month}-02T12:00:00`); const balance=totals.income-totals.expense;
   const titles={dashboard:["Visão geral","Acompanhe o presente e o futuro do seu caixa"],entries:["Lançamentos","Organize entradas, saídas e parcelas"],types:["Configurações","Organize os tipos de entradas e saídas"]};
   return <div className="appLayout">
@@ -33,7 +34,7 @@ export function CashFlowApp({view}:{view:View}){
       <Link className="brand" href="/dashboard"><span>c</span> clara fluxo</Link>
       <nav><p>MENU PRINCIPAL</p><Link className={view==="dashboard"?"active":""} href="/dashboard"><i>⌂</i> Dashboard</Link><Link className={view==="entries"?"active":""} href="/lancamentos"><i>⇄</i> Lançamentos</Link><p className="secondaryNavLabel">CONFIGURAÇÕES</p><Link className={view==="types"?"active":""} href="/tipos-de-movimentacao"><i>≡</i> Tipos de movimentação</Link></nav>
       <div className="sideHelp"><b>Precisa de ajuda?</b><span>Veja como organizar seu fluxo de caixa.</span><button>Ver guia rápido</button></div>
-      <div className="profile"><div className="avatar">CA</div><div><b>Carla</b><span>Administradora</span></div><button aria-label="Opções">•••</button></div>
+      <div className="profile"><div className="avatar">CA</div><div><b>Carla</b><span>Administradora</span></div><button className="logoutButton" onClick={logout} aria-label="Sair" title="Sair">Sair</button></div>
     </aside>
     <main className="mainArea">
       <header className="appTop"><button className="menuButton" onClick={()=>setMobileNav(!mobileNav)} aria-label="Abrir menu">☰</button><div><p className="eyebrow">{titles[view][0]}</p><h1>{titles[view][1]}</h1></div><div className="topActions"><button className="notification" aria-label="Notificações">●</button><button className="primary" onClick={()=>setOpen(true)}>＋ Novo lançamento</button></div></header>

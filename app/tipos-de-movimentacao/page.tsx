@@ -1,2 +1,3 @@
 import { CashFlowApp } from "../CashFlowApp";
-export default function MovementTypesPage(){return <CashFlowApp view="types"/>}
+import { requirePageUser } from "../../lib/auth";
+export default async function MovementTypesPage(){await requirePageUser();return <CashFlowApp view="types"/>}
