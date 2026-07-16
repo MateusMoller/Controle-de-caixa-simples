@@ -23,7 +23,8 @@ function addMonths(dateText: string, offset: number) {
 export async function GET() {
   try {
     await ensureDatabase();
-    if (!(await requireApiUser())) return Response.json({ error: "Não autorizado." }, { status: 401 });
+    const user = await requireApiUser();
+    if (!user) return Response.json({ error: "Não autorizado." }, { status: 401 });
     const rows = await getDb().select().from(entries).orderBy(asc(entries.dueDate), asc(entries.id));
     return Response.json({ entries: rows });
   } catch (error) {
@@ -34,7 +35,8 @@ export async function GET() {
 export async function POST(request: Request) {
   try {
     await ensureDatabase();
-    if (!(await requireApiUser())) return Response.json({ error: "Não autorizado." }, { status: 401 });
+    const user = await requireApiUser();
+    if (!user) return Response.json({ error: "Não autorizado." }, { status: 401 });
     const payload = await request.json() as Record<string, unknown>;
     const description = String(payload.description ?? "").trim();
     const contact = String(payload.contact ?? "").trim();
@@ -57,7 +59,7 @@ export async function POST(request: Request) {
     const groupId = crypto.randomUUID();
     const base = Math.floor(totalCents / installments);
     const remainder = totalCents - base * installments;
-    const values: (typeof entries.$inferInsert)[] = Array.from({ length: installments }, (_, index) => ({ groupId, description, contact, category, type, amountCents: base + (index < remainder ? 1 : 0), dueDate: addMonths(dueDate, index), installment: index + 1, installments, interestType, interestRateBps, paid: false }));
+    const values: (typeof entries.$inferInsert)[] = Array.from({ length: installments }, (_, index) => ({ groupId, description, contact, category, type, amountCents: base + (index < remainder ? 1 : 0), dueDate: addMonths(dueDate, index), installment: index + 1, installments, interestType, interestRateBps, paid: false, createdBy: user.username }));
     const created = await getDb().insert(entries).values(values).returning();
     return Response.json({ entries: created }, { status: 201 });
   } catch (error) {

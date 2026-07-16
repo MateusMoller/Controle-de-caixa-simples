@@ -3,8 +3,8 @@
 import Link from "next/link";
 import { FormEvent, useEffect, useMemo, useState } from "react";
 
-type View = "dashboard" | "entries" | "types";
-type Entry = { id:number; groupId:string; description:string; contact:string; category:string; type:"income"|"expense"; amountCents:number; dueDate:string; installment:number; installments:number; interestType:"none"|"simple"|"compound"; interestRateBps:number; paid:boolean };
+type View = "dashboard" | "entries" | "types" | "history";
+type Entry = { id:number; groupId:string; description:string; contact:string; category:string; type:"income"|"expense"; amountCents:number; dueDate:string; installment:number; installments:number; interestType:"none"|"simple"|"compound"; interestRateBps:number; paid:boolean; createdBy:string; createdAt:string };
 type MovementType = { id:number; name:string };
 const fallbackIncomeTypes = ["Vendas","Serviços","Outros"];
 const fallbackExpenseTypes = ["Moradia","Fornecedores","Transporte","Alimentação","Saúde","Lazer","Outros"];
@@ -28,12 +28,11 @@ export function CashFlowApp({view}:{view:View}){
   async function togglePaid(entry:Entry){const r=await fetch(`/api/entries/${entry.id}`,{method:"PATCH",headers:{"content-type":"application/json"},body:JSON.stringify({paid:!entry.paid})});if(r.ok)setEntries(c=>c.map(i=>i.id===entry.id?{...i,paid:!i.paid}:i))}
   async function logout(){await fetch("/api/auth/logout",{method:"POST"});window.location.href="/login"}
   const monthDate=new Date(`${month}-02T12:00:00`); const balance=totals.income-totals.expense;
-  const titles={dashboard:["Visão geral","Acompanhe o presente e o futuro do seu caixa"],entries:["Lançamentos","Organize entradas, saídas e parcelas"],types:["Configurações","Organize os tipos de entradas e saídas"]};
+  const titles={dashboard:["Visão geral","Acompanhe o presente e o futuro do seu caixa"],entries:["Lançamentos","Organize entradas, saídas e parcelas"],types:["Configurações","Organize os tipos de entradas e saídas"],history:["Histórico","Veja quem adicionou cada lançamento"]};
   return <div className="appLayout">
     <aside className={`sidebar ${mobileNav?"show":""}`}>
       <Link className="brand" href="/dashboard"><span>c</span> clara fluxo</Link>
-      <nav><p>MENU PRINCIPAL</p><Link className={view==="dashboard"?"active":""} href="/dashboard"><i>⌂</i> Dashboard</Link><Link className={view==="entries"?"active":""} href="/lancamentos"><i>⇄</i> Lançamentos</Link><p className="secondaryNavLabel">CONFIGURAÇÕES</p><Link className={view==="types"?"active":""} href="/tipos-de-movimentacao"><i>≡</i> Tipos de movimentação</Link></nav>
-      <div className="sideHelp"><b>Precisa de ajuda?</b><span>Veja como organizar seu fluxo de caixa.</span><button>Ver guia rápido</button></div>
+      <nav><p>MENU PRINCIPAL</p><Link className={view==="dashboard"?"active":""} href="/dashboard"><i>⌂</i> Dashboard</Link><Link className={view==="entries"?"active":""} href="/lancamentos"><i>⇄</i> Lançamentos</Link><Link className={view==="history"?"active":""} href="/historico"><i>◷</i> Histórico</Link><p className="secondaryNavLabel">CONFIGURAÇÕES</p><Link className={view==="types"?"active":""} href="/tipos-de-movimentacao"><i>≡</i> Tipos de movimentação</Link></nav>
       <div className="profile"><div className="avatar">{userName.slice(0,2).toUpperCase()}</div><div><b>{userName}</b><span>Usuário</span></div><button className="logoutButton" onClick={logout} aria-label="Sair" title="Sair">Sair</button></div>
     </aside>
     <main className="mainArea">
@@ -43,9 +42,16 @@ export function CashFlowApp({view}:{view:View}){
       {view==="dashboard"&&<Dashboard totals={totals} balance={balance} evolution={evolution} maxChart={maxChart} categories={categoryTotals} entries={monthEntries} allEntries={entries} month={month} loading={loading} onToggle={togglePaid}/>} 
       {view==="entries"&&<Entries entries={visible} categoryOptions={[...movementTypes.income,...movementTypes.expense].map(item=>item.name)} loading={loading} filter={filter} setFilter={setFilter} search={search} setSearch={setSearch} categoryFilter={categoryFilter} setCategoryFilter={setCategoryFilter} onToggle={togglePaid} onNew={()=>setOpen(true)}/>} 
       {view==="types"&&<MovementTypes types={movementTypes} setTypes={setMovementTypes}/>} 
+      {view==="history"&&<History entries={entries} loading={loading}/>}
     </main>
     {open&&<EntryModal types={movementTypes} onClose={()=>setOpen(false)} onSubmit={submit}/>} 
   </div>
+}
+
+function History({entries,loading}:{entries:Entry[];loading:boolean}){
+  const groups=useMemo(()=>{const map=new Map<string,Entry[]>();entries.forEach(entry=>map.set(entry.groupId,[...(map.get(entry.groupId)||[]),entry]));return [...map.values()].map(rows=>({entry:rows[0],total:rows.reduce((sum,row)=>sum+row.amountCents,0)})).sort((a,b)=>new Date(b.entry.createdAt).getTime()-new Date(a.entry.createdAt).getTime())},[entries]);
+  const dateTime=new Intl.DateTimeFormat("pt-BR",{dateStyle:"short",timeStyle:"short"});
+  return <div className="content"><section className="panel historyPanel"><div className="ledgerHead"><div><h2>Histórico de lançamentos</h2><p>Registro de quem adicionou cada movimentação ao caixa</p></div><span className="historyCount">{groups.length} registro(s)</span></div><div className="tableWrap"><table><thead><tr><th>Data e hora</th><th>Usuário</th><th>Lançamento</th><th>Tipo</th><th>Parcelas</th><th>Valor total</th></tr></thead><tbody>{loading?<tr><td colSpan={6} className="empty">Carregando histórico…</td></tr>:groups.length===0?<tr><td colSpan={6}><Empty/></td></tr>:groups.map(({entry,total})=><tr key={entry.groupId}><td>{dateTime.format(new Date(entry.createdAt))}</td><td><span className="historyUser">{entry.createdBy.charAt(0).toUpperCase()+entry.createdBy.slice(1)}</span></td><td><b>{entry.description}</b><small className="historyMeta">{entry.category}{entry.contact?` · ${entry.contact}`:""}</small></td><td><span className={`historyType ${entry.type}`}>{entry.type==="income"?"Entrada":"Saída"}</span></td><td>{entry.installments>1?`${entry.installments} parcelas`:"À vista"}</td><td className={entry.type}>{money.format(total/100)}</td></tr>)}</tbody></table></div></section></div>
 }
 
 function Dashboard({totals,balance,evolution,maxChart,categories,entries,allEntries,month,loading,onToggle}:{totals:{income:number;expense:number;pending:number;paid:number;receivable:number;payable:number};balance:number;evolution:{key:string;label:string;income:number;expense:number}[];maxChart:number;categories:[string,number][];entries:Entry[];allEntries:Entry[];month:string;loading:boolean;onToggle:(e:Entry)=>void}){

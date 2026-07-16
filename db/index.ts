@@ -63,8 +63,12 @@ export async function ensureDatabase() {
         installments INTEGER NOT NULL DEFAULT 1,
         interest_type TEXT NOT NULL DEFAULT 'none',
         interest_rate_bps INTEGER NOT NULL DEFAULT 0,
-        paid BOOLEAN NOT NULL DEFAULT FALSE
+        paid BOOLEAN NOT NULL DEFAULT FALSE,
+        created_by TEXT NOT NULL DEFAULT 'sistema',
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
       )`;
+      await sql`ALTER TABLE entries ADD COLUMN IF NOT EXISTS created_by TEXT NOT NULL DEFAULT 'sistema'`;
+      await sql`ALTER TABLE entries ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()`;
       await sql`CREATE TABLE IF NOT EXISTS income_types (id SERIAL PRIMARY KEY, name TEXT NOT NULL UNIQUE)`;
       await sql`CREATE TABLE IF NOT EXISTS expense_types (id SERIAL PRIMARY KEY, name TEXT NOT NULL UNIQUE)`;
       await sql`INSERT INTO income_types (name) VALUES ('Vendas'), ('Serviços'), ('Comissões'), ('Outros') ON CONFLICT (name) DO NOTHING`;

@@ -28,6 +28,8 @@ export const entries = pgTable("entries", {
   interestType: text("interest_type", { enum: ["none", "simple", "compound"] }).notNull().default("none"),
   interestRateBps: integer("interest_rate_bps").notNull().default(0),
   paid: boolean("paid").notNull().default(false),
+  createdBy: text("created_by").notNull().default("sistema"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
 export const incomeTypes = pgTable("income_types", {
