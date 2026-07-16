@@ -1,8 +1,9 @@
 import { eq } from "drizzle-orm";
-import { getDb } from "../../../../db";
+import { ensureDatabase, getDb } from "../../../../db";
 import { entries } from "../../../../db/schema";
 
 export async function PATCH(request: Request, context: { params: Promise<{ id: string }> }) {
+  await ensureDatabase();
   const { id } = await context.params;
   const payload = await request.json() as { paid?: boolean };
   const [entry] = await getDb().update(entries).set({ paid: Boolean(payload.paid) }).where(eq(entries.id, Number(id))).returning();

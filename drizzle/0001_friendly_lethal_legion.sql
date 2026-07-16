@@ -1,1 +1,0 @@
-ALTER TABLE `entries` ADD `contact` text DEFAULT '' NOT NULL;

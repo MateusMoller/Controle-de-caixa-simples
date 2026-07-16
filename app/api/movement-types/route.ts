@@ -1,8 +1,9 @@
 import { asc } from "drizzle-orm";
-import { getDb } from "../../../db";
+import { ensureDatabase, getDb } from "../../../db";
 import { expenseTypes, incomeTypes } from "../../../db/schema";
 
 export async function GET() {
+  await ensureDatabase();
   const db = getDb();
   const [income, expense] = await Promise.all([
     db.select().from(incomeTypes).orderBy(asc(incomeTypes.name)),
@@ -12,6 +13,7 @@ export async function GET() {
 }
 
 export async function POST(request: Request) {
+  await ensureDatabase();
   const payload = await request.json() as { kind?: string; name?: string };
   const name = payload.name?.trim();
   if (!name || name.length > 50) return Response.json({ error: "Informe um nome com até 50 caracteres." }, { status: 400 });

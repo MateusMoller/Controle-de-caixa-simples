@@ -1,5 +1,5 @@
 import { asc } from "drizzle-orm";
-import { getDb } from "../../../db";
+import { ensureDatabase, getDb } from "../../../db";
 import { entries } from "../../../db/schema";
 
 function parseMoney(value: unknown) {
@@ -21,6 +21,7 @@ function addMonths(dateText: string, offset: number) {
 
 export async function GET() {
   try {
+    await ensureDatabase();
     const rows = await getDb().select().from(entries).orderBy(asc(entries.dueDate), asc(entries.id));
     return Response.json({ entries: rows });
   } catch (error) {
@@ -30,16 +31,17 @@ export async function GET() {
 
 export async function POST(request: Request) {
   try {
+    await ensureDatabase();
     const payload = await request.json() as Record<string, unknown>;
     const description = String(payload.description ?? "").trim();
     const contact = String(payload.contact ?? "").trim();
     const category = String(payload.category ?? "Outros").trim();
-    const type = payload.type === "expense" ? "expense" : "income";
+    const type: "income" | "expense" = payload.type === "expense" ? "expense" : "income";
     const dueDate = String(payload.dueDate ?? "");
     const installments = Math.max(1, Math.min(60, Number(payload.installments) || 1));
     const principalCents = parseMoney(payload.amount);
     const requestedInterest = payload.interestType === "simple" || payload.interestType === "compound" ? payload.interestType : "none";
-    const interestType = installments > 1 ? requestedInterest : "none";
+    const interestType: "none" | "simple" | "compound" = installments > 1 ? requestedInterest : "none";
     const monthlyRate = interestType === "none" ? 0 : parseRate(payload.interestRate);
     const interestRateBps = Math.round(monthlyRate * 100);
     const rate = monthlyRate / 100;
@@ -52,7 +54,7 @@ export async function POST(request: Request) {
     const groupId = crypto.randomUUID();
     const base = Math.floor(totalCents / installments);
     const remainder = totalCents - base * installments;
-    const values = Array.from({ length: installments }, (_, index) => ({ groupId, description, contact, category, type, amountCents: base + (index < remainder ? 1 : 0), dueDate: addMonths(dueDate, index), installment: index + 1, installments, interestType, interestRateBps, paid: false }));
+    const values: (typeof entries.$inferInsert)[] = Array.from({ length: installments }, (_, index) => ({ groupId, description, contact, category, type, amountCents: base + (index < remainder ? 1 : 0), dueDate: addMonths(dueDate, index), installment: index + 1, installments, interestType, interestRateBps, paid: false }));
     const created = await getDb().insert(entries).values(values).returning();
     return Response.json({ entries: created }, { status: 201 });
   } catch (error) {
