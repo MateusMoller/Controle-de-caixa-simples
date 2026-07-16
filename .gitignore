@@ -21,6 +21,8 @@
 # misc
 .DS_Store
 *.pem
+.codex-dev*.log
+*-site.tar.gz
 
 # debug
 npm-debug.log*

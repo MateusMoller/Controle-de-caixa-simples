@@ -1,5 +1,3 @@
-import { CashFlowApp } from "./CashFlowApp";
+import { redirect } from "next/navigation";
 
-export default function Home() {
-  return <CashFlowApp />;
-}
+export default function Home() { redirect("/dashboard"); }

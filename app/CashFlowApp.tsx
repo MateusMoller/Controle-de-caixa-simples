@@ -1,143 +1,60 @@
 "use client";
 
+import Link from "next/link";
 import { FormEvent, useEffect, useMemo, useState } from "react";
 
-type Entry = {
-  id: number;
-  groupId: string;
-  description: string;
-  category: string;
-  type: "income" | "expense";
-  amountCents: number;
-  dueDate: string;
-  installment: number;
-  installments: number;
-  paid: boolean;
-};
+type View = "dashboard" | "entries" | "reports";
+type Entry = { id:number; groupId:string; description:string; category:string; type:"income"|"expense"; amountCents:number; dueDate:string; installment:number; installments:number; paid:boolean };
+const categories = ["Vendas","Serviços","Moradia","Fornecedores","Transporte","Alimentação","Saúde","Lazer","Outros"];
+const money = new Intl.NumberFormat("pt-BR",{style:"currency",currency:"BRL"});
+const monthName = new Intl.DateTimeFormat("pt-BR",{month:"long",year:"numeric"});
+const shortMonth = new Intl.DateTimeFormat("pt-BR",{month:"short"});
+function isoMonth(date=new Date()){return `${date.getFullYear()}-${String(date.getMonth()+1).padStart(2,"0")}`}
+function moveMonth(month:string,offset:number){const [y,m]=month.split("-").map(Number);return isoMonth(new Date(y,m-1+offset,1))}
+function labelDate(value:string){return new Intl.DateTimeFormat("pt-BR").format(new Date(`${value}T12:00:00`))}
 
-const categories = ["Vendas", "Serviços", "Moradia", "Fornecedores", "Transporte", "Alimentação", "Saúde", "Lazer", "Outros"];
-const money = new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" });
-const monthName = new Intl.DateTimeFormat("pt-BR", { month: "long", year: "numeric" });
-
-function isoMonth(date = new Date()) {
-  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
-}
-
-function moveMonth(month: string, offset: number) {
-  const [year, value] = month.split("-").map(Number);
-  const date = new Date(year, value - 1 + offset, 1);
-  return isoMonth(date);
-}
-
-export function CashFlowApp() {
-  const [entries, setEntries] = useState<Entry[]>([]);
-  const [month, setMonth] = useState(isoMonth());
-  const [loading, setLoading] = useState(true);
-  const [open, setOpen] = useState(false);
-  const [error, setError] = useState("");
-  const [filter, setFilter] = useState<"all" | "income" | "expense">("all");
-
-  async function loadEntries() {
-    try {
-      const response = await fetch("/api/entries");
-      const data = await response.json();
-      if (!response.ok) throw new Error(data.error);
-      setEntries(data.entries);
-    } catch {
-      setError("Não foi possível carregar os lançamentos agora.");
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  useEffect(() => { loadEntries(); }, []);
-
-  const visible = useMemo(() => entries
-    .filter((entry) => entry.dueDate.startsWith(month))
-    .filter((entry) => filter === "all" || entry.type === filter)
-    .sort((a, b) => a.dueDate.localeCompare(b.dueDate)), [entries, month, filter]);
-
-  const totals = useMemo(() => entries.filter((entry) => entry.dueDate.startsWith(month)).reduce(
-    (acc, entry) => {
-      acc[entry.type] += entry.amountCents;
-      if (!entry.paid) acc.pending += entry.type === "income" ? entry.amountCents : -entry.amountCents;
-      return acc;
-    }, { income: 0, expense: 0, pending: 0 }), [entries, month]);
-
-  async function submit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    setError("");
-    const form = new FormData(event.currentTarget);
-    const response = await fetch("/api/entries", {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify(Object.fromEntries(form)),
-    });
-    const data = await response.json();
-    if (!response.ok) return setError(data.error || "Confira os dados e tente novamente.");
-    setEntries((current) => [...current, ...data.entries]);
-    setMonth(String(form.get("dueDate")).slice(0, 7));
-    setOpen(false);
-  }
-
-  async function togglePaid(entry: Entry) {
-    const response = await fetch(`/api/entries/${entry.id}`, {
-      method: "PATCH",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ paid: !entry.paid }),
-    });
-    if (response.ok) setEntries((current) => current.map((item) => item.id === entry.id ? { ...item, paid: !item.paid } : item));
-  }
-
-  const monthDate = new Date(`${month}-02T12:00:00`);
-
-  return (
-    <main className="shell">
-      <header className="topbar">
-        <a className="brand" href="#" aria-label="Clara Fluxo — início"><span>c</span> clara fluxo</a>
-        <div className="topActions"><button className="iconButton" aria-label="Notificações">●</button><div className="avatar">CA</div></div>
-      </header>
-
-      <section className="hero">
-        <div><p className="eyebrow">VISÃO GERAL</p><h1>Olá, Carla! <span>Seu caixa, sem complicação.</span></h1></div>
-        <button className="primary" onClick={() => setOpen(true)}>＋ Novo lançamento</button>
-      </section>
-
-      <section className="monthNav" aria-label="Navegação por mês">
-        <button onClick={() => setMonth(moveMonth(month, -1))} aria-label="Mês anterior">←</button>
-        <strong>{monthName.format(monthDate)}</strong>
-        <button onClick={() => setMonth(moveMonth(month, 1))} aria-label="Próximo mês">→</button>
-      </section>
-
-      <section className="cards">
-        <article className="metric income"><div className="metricIcon">↗</div><div><p>Entradas</p><strong>{money.format(totals.income / 100)}</strong><small>previstas no mês</small></div></article>
-        <article className="metric expense"><div className="metricIcon">↘</div><div><p>Saídas</p><strong>{money.format(totals.expense / 100)}</strong><small>previstas no mês</small></div></article>
-        <article className="balance"><p>Saldo projetado</p><strong>{money.format((totals.income - totals.expense) / 100)}</strong><div className="balanceBar"><span style={{ width: `${Math.min(100, totals.income ? ((totals.income - totals.expense) / totals.income) * 100 : 0)}%` }} /></div><small>{money.format(Math.abs(totals.pending) / 100)} ainda aguardando confirmação</small></article>
-      </section>
-
-      <section className="ledger">
-        <div className="ledgerHead"><div><p className="eyebrow">MOVIMENTAÇÕES</p><h2>Lançamentos do mês</h2></div><div className="filters">{(["all", "income", "expense"] as const).map((value) => <button className={filter === value ? "active" : ""} key={value} onClick={() => setFilter(value)}>{value === "all" ? "Todos" : value === "income" ? "Entradas" : "Saídas"}</button>)}</div></div>
-        {error && <p className="notice">{error}</p>}
-        <div className="tableWrap">
-          <table><thead><tr><th>Status</th><th>Descrição</th><th>Categoria</th><th>Vencimento</th><th>Parcela</th><th>Valor</th></tr></thead>
-          <tbody>{loading ? <tr><td colSpan={6} className="empty">Carregando seu caixa…</td></tr> : visible.length === 0 ? <tr><td colSpan={6} className="empty"><b>Nenhum lançamento por aqui.</b><span>Adicione uma entrada ou saída para começar.</span></td></tr> : visible.map((entry) => <tr key={entry.id}>
-            <td><button className={`status ${entry.paid ? "done" : ""}`} onClick={() => togglePaid(entry)} aria-label={entry.paid ? "Marcar como pendente" : "Marcar como pago"}>{entry.paid ? "✓" : ""}</button></td>
-            <td><b>{entry.description}</b></td><td><span className="tag">{entry.category}</span></td><td>{new Intl.DateTimeFormat("pt-BR").format(new Date(`${entry.dueDate}T12:00:00`))}</td><td>{entry.installments > 1 ? `${entry.installment}/${entry.installments}` : "—"}</td><td className={entry.type}>{entry.type === "expense" ? "− " : "+ "}{money.format(entry.amountCents / 100)}</td>
-          </tr>)}</tbody></table>
-        </div>
-      </section>
-
-      {open && <div className="modalBackdrop" onMouseDown={(event) => event.target === event.currentTarget && setOpen(false)}><section className="modal" role="dialog" aria-modal="true" aria-labelledby="dialog-title">
-        <button className="close" onClick={() => setOpen(false)} aria-label="Fechar">×</button><p className="eyebrow">NOVO LANÇAMENTO</p><h2 id="dialog-title">O que aconteceu no seu caixa?</h2><p className="modalIntro">Se for parcelado, nós criamos todos os próximos vencimentos para você.</p>
-        <form onSubmit={submit}>
-          <div className="typeChoice"><label><input type="radio" name="type" value="income" defaultChecked /><span>↗ Entrada</span></label><label><input type="radio" name="type" value="expense" /><span>↘ Saída</span></label></div>
-          <label className="field"><span>Descrição</span><input name="description" required placeholder="Ex.: Notebook para o escritório" /></label>
-          <div className="formGrid"><label className="field"><span>Valor total</span><input name="amount" required inputMode="decimal" placeholder="0,00" /></label><label className="field"><span>Categoria</span><select name="category">{categories.map((category) => <option key={category}>{category}</option>)}</select></label></div>
-          <div className="formGrid"><label className="field"><span>Primeiro vencimento</span><input type="date" name="dueDate" required defaultValue={`${isoMonth()}-15`} /></label><label className="field"><span>Número de parcelas</span><input type="number" name="installments" min="1" max="60" defaultValue="1" required /></label></div>
-          <p className="splitHint">O valor total será dividido igualmente entre as parcelas, mês a mês.</p>
-          <button className="primary submit" type="submit">Salvar lançamento</button>
-        </form>
-      </section></div>}
+export function CashFlowApp({view}:{view:View}){
+  const [entries,setEntries]=useState<Entry[]>([]); const [month,setMonth]=useState(isoMonth()); const [loading,setLoading]=useState(true); const [open,setOpen]=useState(false); const [error,setError]=useState(""); const [filter,setFilter]=useState<"all"|"income"|"expense"|"pending">("all"); const [mobileNav,setMobileNav]=useState(false);
+  useEffect(()=>{fetch("/api/entries").then(async r=>{const d=await r.json();if(!r.ok)throw new Error();setEntries(d.entries)}).catch(()=>setError("Não foi possível carregar os lançamentos agora.")).finally(()=>setLoading(false))},[]);
+  const monthEntries=useMemo(()=>entries.filter(e=>e.dueDate.startsWith(month)),[entries,month]);
+  const totals=useMemo(()=>monthEntries.reduce((a,e)=>{a[e.type]+=e.amountCents;if(!e.paid)a.pending++;else a.paid+=e.amountCents;return a},{income:0,expense:0,pending:0,paid:0}),[monthEntries]);
+  const visible=useMemo(()=>monthEntries.filter(e=>filter==="all"||(filter==="pending"?!e.paid:e.type===filter)).sort((a,b)=>a.dueDate.localeCompare(b.dueDate)),[monthEntries,filter]);
+  const categoryTotals=useMemo(()=>{const map=new Map<string,number>();monthEntries.filter(e=>e.type==="expense").forEach(e=>map.set(e.category,(map.get(e.category)||0)+e.amountCents));return [...map].sort((a,b)=>b[1]-a[1])},[monthEntries]);
+  const evolution=useMemo(()=>Array.from({length:6},(_,i)=>{const key=moveMonth(month,i-5);const rows=entries.filter(e=>e.dueDate.startsWith(key));return {key,label:shortMonth.format(new Date(`${key}-02T12:00:00`)).replace(".",""),income:rows.filter(e=>e.type==="income").reduce((s,e)=>s+e.amountCents,0),expense:rows.filter(e=>e.type==="expense").reduce((s,e)=>s+e.amountCents,0)}}),[entries,month]);
+  const maxChart=Math.max(1,...evolution.flatMap(e=>[e.income,e.expense]));
+  async function submit(event:FormEvent<HTMLFormElement>){event.preventDefault();setError("");const form=new FormData(event.currentTarget);const response=await fetch("/api/entries",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify(Object.fromEntries(form))});const data=await response.json();if(!response.ok)return setError(data.error||"Confira os dados e tente novamente.");setEntries(c=>[...c,...data.entries]);setMonth(String(form.get("dueDate")).slice(0,7));setOpen(false)}
+  async function togglePaid(entry:Entry){const r=await fetch(`/api/entries/${entry.id}`,{method:"PATCH",headers:{"content-type":"application/json"},body:JSON.stringify({paid:!entry.paid})});if(r.ok)setEntries(c=>c.map(i=>i.id===entry.id?{...i,paid:!i.paid}:i))}
+  const monthDate=new Date(`${month}-02T12:00:00`); const balance=totals.income-totals.expense;
+  const titles={dashboard:["Visão geral","Acompanhe a saúde do seu caixa"],entries:["Lançamentos","Organize entradas, saídas e parcelas"],reports:["Relatórios","Entenda para onde seu dinheiro está indo"]};
+  return <div className="appLayout">
+    <aside className={`sidebar ${mobileNav?"show":""}`}>
+      <Link className="brand" href="/dashboard"><span>c</span> clara fluxo</Link>
+      <nav><p>MENU PRINCIPAL</p><Link className={view==="dashboard"?"active":""} href="/dashboard"><i>⌂</i> Dashboard</Link><Link className={view==="entries"?"active":""} href="/lancamentos"><i>⇄</i> Lançamentos</Link><Link className={view==="reports"?"active":""} href="/relatorios"><i>▥</i> Relatórios</Link></nav>
+      <div className="sideHelp"><b>Precisa de ajuda?</b><span>Veja como organizar seu fluxo de caixa.</span><button>Ver guia rápido</button></div>
+      <div className="profile"><div className="avatar">CA</div><div><b>Carla</b><span>Administradora</span></div><button aria-label="Opções">•••</button></div>
+    </aside>
+    <main className="mainArea">
+      <header className="appTop"><button className="menuButton" onClick={()=>setMobileNav(!mobileNav)} aria-label="Abrir menu">☰</button><div><p className="eyebrow">{titles[view][0]}</p><h1>{titles[view][1]}</h1></div><div className="topActions"><button className="notification" aria-label="Notificações">●</button><button className="primary" onClick={()=>setOpen(true)}>＋ Novo lançamento</button></div></header>
+      <section className="monthNav"><button onClick={()=>setMonth(moveMonth(month,-1))}>←</button><strong>{monthName.format(monthDate)}</strong><button onClick={()=>setMonth(moveMonth(month,1))}>→</button><button className="today" onClick={()=>setMonth(isoMonth())}>Hoje</button></section>
+      {error&&<p className="notice">{error}</p>}
+      {view==="dashboard"&&<Dashboard totals={totals} balance={balance} evolution={evolution} maxChart={maxChart} categories={categoryTotals} entries={monthEntries} loading={loading} onToggle={togglePaid}/>} 
+      {view==="entries"&&<Entries entries={visible} loading={loading} filter={filter} setFilter={setFilter} onToggle={togglePaid} onNew={()=>setOpen(true)}/>} 
+      {view==="reports"&&<Reports totals={totals} balance={balance} evolution={evolution} maxChart={maxChart} categories={categoryTotals}/>} 
     </main>
-  );
+    {open&&<EntryModal onClose={()=>setOpen(false)} onSubmit={submit}/>} 
+  </div>
 }
+
+function Dashboard({totals,balance,evolution,maxChart,categories,entries,loading,onToggle}:{totals:{income:number;expense:number;pending:number;paid:number};balance:number;evolution:{key:string;label:string;income:number;expense:number}[];maxChart:number;categories:[string,number][];entries:Entry[];loading:boolean;onToggle:(e:Entry)=>void}){
+  const expensePct=totals.income?Math.round(totals.expense/totals.income*100):0;
+  return <div className="content"><section className="kpis"><article><div className="kpiTop"><span className="kpiIcon green">↗</span><em>ENTRADAS</em></div><strong>{money.format(totals.income/100)}</strong><small>Receitas previstas no mês</small></article><article><div className="kpiTop"><span className="kpiIcon coral">↘</span><em>SAÍDAS</em></div><strong>{money.format(totals.expense/100)}</strong><small>{expensePct}% das entradas do mês</small></article><article className="featured"><div className="kpiTop"><span className="kpiIcon gold">◇</span><em>SALDO PROJETADO</em></div><strong>{money.format(balance/100)}</strong><small>{totals.pending} lançamento(s) aguardando baixa</small></article><article><div className="kpiTop"><span className="kpiIcon blue">✓</span><em>REALIZADO</em></div><strong>{money.format(totals.paid/100)}</strong><small>Valores já confirmados</small></article></section>
+  <section className="dashGrid"><article className="panel chartPanel"><PanelHead title="Evolução do caixa" subtitle="Entradas e saídas nos últimos 6 meses"/><div className="legend"><span><i className="dot incomeDot"/>Entradas</span><span><i className="dot expenseDot"/>Saídas</span></div><div className="barChart">{evolution.map(e=><div className="barGroup" key={e.key}><div className="bars"><span className="bar in" style={{height:`${Math.max(3,e.income/maxChart*100)}%`}} title={money.format(e.income/100)}/><span className="bar out" style={{height:`${Math.max(3,e.expense/maxChart*100)}%`}} title={money.format(e.expense/100)}/></div><b>{e.label}</b></div>)}</div></article>
+  <article className="panel categoryPanel"><PanelHead title="Saídas por categoria" subtitle="Distribuição deste mês"/>{categories.length?<div className="categoryList">{categories.slice(0,5).map(([name,value],i)=><div key={name}><div className="categoryLine"><span><i className={`catColor c${i}`}/>{name}</span><b>{money.format(value/100)}</b></div><div className="progress"><span className={`c${i}`} style={{width:`${value/categories[0][1]*100}%`}}/></div></div>)}</div>:<Empty compact/>}</article></section>
+  <section className="panel recent"><PanelHead title="Próximos lançamentos" subtitle="Movimentações mais próximas do vencimento" action={<Link href="/lancamentos">Ver todos →</Link>}/><LedgerTable entries={[...entries].sort((a,b)=>a.dueDate.localeCompare(b.dueDate)).slice(0,5)} loading={loading} onToggle={onToggle}/></section></div>
+}
+function Entries({entries,loading,filter,setFilter,onToggle,onNew}:{entries:Entry[];loading:boolean;filter:string;setFilter:(v:"all"|"income"|"expense"|"pending")=>void;onToggle:(e:Entry)=>void;onNew:()=>void}){return <div className="content"><section className="panel entriesPanel"><div className="ledgerHead"><div><h2>Todos os lançamentos</h2><p>Gerencie os vencimentos e confirme pagamentos</p></div><div className="filters">{([["all","Todos"],["income","Entradas"],["expense","Saídas"],["pending","Pendentes"]] as const).map(([value,label])=><button className={filter===value?"active":""} key={value} onClick={()=>setFilter(value)}>{label}</button>)}</div></div><LedgerTable entries={entries} loading={loading} onToggle={onToggle}/>{!loading&&entries.length===0&&<button className="emptyAction" onClick={onNew}>＋ Criar lançamento</button>}</section></div>}
+function Reports({totals,balance,evolution,maxChart,categories}:{totals:{income:number;expense:number};balance:number;evolution:{key:string;label:string;income:number;expense:number}[];maxChart:number;categories:[string,number][]}){const margin=totals.income?Math.round(balance/totals.income*100):0;return <div className="content reports"><section className="reportSummary"><div><span>Resultado do mês</span><strong>{money.format(balance/100)}</strong><small className={balance>=0?"positive":"negative"}>{margin}% de margem sobre as entradas</small></div><div><span>Total movimentado</span><strong>{money.format((totals.income+totals.expense)/100)}</strong><small>Entradas + saídas</small></div><div><span>Maior categoria de saída</span><strong>{categories[0]?.[0]||"—"}</strong><small>{categories[0]?money.format(categories[0][1]/100):"Sem despesas no mês"}</small></div></section><section className="panel reportChart"><PanelHead title="Comparativo mensal" subtitle="Visão consolidada dos últimos 6 meses"/><div className="wideChart">{evolution.map(e=><div className="wideRow" key={e.key}><b>{e.label}</b><div><span className="wideIn" style={{width:`${e.income/maxChart*100}%`}}/><span className="wideOut" style={{width:`${e.expense/maxChart*100}%`}}/></div><small>{money.format((e.income-e.expense)/100)}</small></div>)}</div></section><section className="panel categoryReport"><PanelHead title="Detalhamento por categoria" subtitle="Participação das despesas no mês"/><div className="reportRows">{categories.map(([name,value])=><div key={name}><span>{name}</span><b>{money.format(value/100)}</b><em>{totals.expense?Math.round(value/totals.expense*100):0}%</em></div>)}{!categories.length&&<Empty compact/>}</div></section></div>}
+function PanelHead({title,subtitle,action}:{title:string;subtitle:string;action?:React.ReactNode}){return <div className="panelHead"><div><h2>{title}</h2><p>{subtitle}</p></div>{action}</div>}
+function Empty({compact=false}:{compact?:boolean}){return <div className={`empty ${compact?"compact":""}`}><b>Nenhum lançamento por aqui.</b><span>Adicione uma entrada ou saída para começar.</span></div>}
+function LedgerTable({entries,loading,onToggle}:{entries:Entry[];loading:boolean;onToggle:(e:Entry)=>void}){return <div className="tableWrap"><table><thead><tr><th>Status</th><th>Descrição</th><th>Categoria</th><th>Vencimento</th><th>Parcela</th><th>Valor</th></tr></thead><tbody>{loading?<tr><td colSpan={6} className="empty">Carregando seu caixa…</td></tr>:entries.length===0?<tr><td colSpan={6}><Empty/></td></tr>:entries.map(e=><tr key={e.id}><td><button className={`status ${e.paid?"done":""}`} onClick={()=>onToggle(e)} aria-label={e.paid?"Marcar como pendente":"Marcar como pago"}>{e.paid?"✓":""}</button></td><td><b>{e.description}</b><small className="mobileCategory">{e.category}</small></td><td><span className="tag">{e.category}</span></td><td>{labelDate(e.dueDate)}</td><td>{e.installments>1?`${e.installment}/${e.installments}`:"—"}</td><td className={e.type}>{e.type==="expense"?"− ":"+ "}{money.format(e.amountCents/100)}</td></tr>)}</tbody></table></div>}
+function EntryModal({onClose,onSubmit}:{onClose:()=>void;onSubmit:(e:FormEvent<HTMLFormElement>)=>void}){return <div className="modalBackdrop" onMouseDown={e=>e.target===e.currentTarget&&onClose()}><section className="modal" role="dialog" aria-modal="true"><button className="close" onClick={onClose}>×</button><p className="eyebrow">NOVO LANÇAMENTO</p><h2>O que aconteceu no seu caixa?</h2><p className="modalIntro">Se for parcelado, criamos todos os próximos vencimentos para você.</p><form onSubmit={onSubmit}><div className="typeChoice"><label><input type="radio" name="type" value="income" defaultChecked/><span>↗ Entrada</span></label><label><input type="radio" name="type" value="expense"/><span>↘ Saída</span></label></div><label className="field"><span>Descrição</span><input name="description" required placeholder="Ex.: Notebook para o escritório"/></label><div className="formGrid"><label className="field"><span>Valor total</span><input name="amount" required inputMode="decimal" placeholder="0,00"/></label><label className="field"><span>Categoria</span><select name="category">{categories.map(c=><option key={c}>{c}</option>)}</select></label></div><div className="formGrid"><label className="field"><span>Primeiro vencimento</span><input type="date" name="dueDate" required defaultValue={`${isoMonth()}-15`}/></label><label className="field"><span>Número de parcelas</span><input type="number" name="installments" min="1" max="60" defaultValue="1" required/></label></div><p className="splitHint">O valor total será dividido igualmente entre as parcelas, mês a mês.</p><button className="primary submit">Salvar lançamento</button></form></section></div>}
