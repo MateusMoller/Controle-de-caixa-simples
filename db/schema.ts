@@ -4,6 +4,7 @@ export const entries = sqliteTable("entries", {
   id: integer("id").primaryKey({ autoIncrement: true }),
   groupId: text("group_id").notNull(),
   description: text("description").notNull(),
+  contact: text("contact").notNull().default(""),
   category: text("category").notNull(),
   type: text("type", { enum: ["income", "expense"] }).notNull(),
   amountCents: integer("amount_cents").notNull(),

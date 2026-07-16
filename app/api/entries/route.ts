@@ -27,6 +27,7 @@ export async function POST(request: Request) {
   try {
     const payload = await request.json() as Record<string, unknown>;
     const description = String(payload.description ?? "").trim();
+    const contact = String(payload.contact ?? "").trim();
     const category = String(payload.category ?? "Outros").trim();
     const type = payload.type === "expense" ? "expense" : "income";
     const dueDate = String(payload.dueDate ?? "");
@@ -36,7 +37,7 @@ export async function POST(request: Request) {
     const groupId = crypto.randomUUID();
     const base = Math.floor(totalCents / installments);
     const remainder = totalCents - base * installments;
-    const values = Array.from({ length: installments }, (_, index) => ({ groupId, description, category, type, amountCents: base + (index < remainder ? 1 : 0), dueDate: addMonths(dueDate, index), installment: index + 1, installments, paid: false }));
+    const values = Array.from({ length: installments }, (_, index) => ({ groupId, description, contact, category, type, amountCents: base + (index < remainder ? 1 : 0), dueDate: addMonths(dueDate, index), installment: index + 1, installments, paid: false }));
     const created = await getDb().insert(entries).values(values).returning();
     return Response.json({ entries: created }, { status: 201 });
   } catch (error) {
