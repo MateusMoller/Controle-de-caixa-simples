@@ -7,6 +7,11 @@ function parseMoney(value: unknown) {
   return Math.round(Number(normalized) * 100);
 }
 
+function parseRate(value: unknown) {
+  const rate = Number(String(value ?? "0").trim().replace(",", "."));
+  return Number.isFinite(rate) ? Math.max(0, Math.min(100, rate)) : 0;
+}
+
 function addMonths(dateText: string, offset: number) {
   const [year, month, day] = dateText.split("-").map(Number);
   const date = new Date(Date.UTC(year, month - 1 + offset, 1));
@@ -32,12 +37,22 @@ export async function POST(request: Request) {
     const type = payload.type === "expense" ? "expense" : "income";
     const dueDate = String(payload.dueDate ?? "");
     const installments = Math.max(1, Math.min(60, Number(payload.installments) || 1));
-    const totalCents = parseMoney(payload.amount);
-    if (!description || !/^\d{4}-\d{2}-\d{2}$/.test(dueDate) || !Number.isFinite(totalCents) || totalCents <= 0) return Response.json({ error: "Preencha descrição, valor e vencimento corretamente." }, { status: 400 });
+    const principalCents = parseMoney(payload.amount);
+    const requestedInterest = payload.interestType === "simple" || payload.interestType === "compound" ? payload.interestType : "none";
+    const interestType = installments > 1 ? requestedInterest : "none";
+    const monthlyRate = interestType === "none" ? 0 : parseRate(payload.interestRate);
+    const interestRateBps = Math.round(monthlyRate * 100);
+    const rate = monthlyRate / 100;
+    const totalCents = interestType === "simple"
+      ? Math.round(principalCents * (1 + rate * installments))
+      : interestType === "compound"
+        ? Math.round(principalCents * Math.pow(1 + rate, installments))
+        : principalCents;
+    if (!description || !/^\d{4}-\d{2}-\d{2}$/.test(dueDate) || !Number.isFinite(principalCents) || principalCents <= 0) return Response.json({ error: "Preencha descrição, valor e vencimento corretamente." }, { status: 400 });
     const groupId = crypto.randomUUID();
     const base = Math.floor(totalCents / installments);
     const remainder = totalCents - base * installments;
-    const values = Array.from({ length: installments }, (_, index) => ({ groupId, description, contact, category, type, amountCents: base + (index < remainder ? 1 : 0), dueDate: addMonths(dueDate, index), installment: index + 1, installments, paid: false }));
+    const values = Array.from({ length: installments }, (_, index) => ({ groupId, description, contact, category, type, amountCents: base + (index < remainder ? 1 : 0), dueDate: addMonths(dueDate, index), installment: index + 1, installments, interestType, interestRateBps, paid: false }));
     const created = await getDb().insert(entries).values(values).returning();
     return Response.json({ entries: created }, { status: 201 });
   } catch (error) {

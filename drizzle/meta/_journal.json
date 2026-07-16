@@ -15,6 +15,13 @@
       "when": 1784202646708,
       "tag": "0001_friendly_lethal_legion",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1784205750341,
+      "tag": "0002_massive_medusa",
+      "breakpoints": true
     }
   ]
 }
