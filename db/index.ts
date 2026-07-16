@@ -58,7 +58,10 @@ export async function ensureDatabase() {
         category TEXT NOT NULL,
         type TEXT NOT NULL CHECK (type IN ('income', 'expense')),
         amount_cents INTEGER NOT NULL,
+        paid_amount_cents INTEGER NOT NULL DEFAULT 0,
         due_date TEXT NOT NULL,
+        settlement_date TEXT,
+        payment_method TEXT NOT NULL DEFAULT 'Não informado',
         installment INTEGER NOT NULL DEFAULT 1,
         installments INTEGER NOT NULL DEFAULT 1,
         interest_type TEXT NOT NULL DEFAULT 'none',
@@ -69,6 +72,10 @@ export async function ensureDatabase() {
       )`;
       await sql`ALTER TABLE entries ADD COLUMN IF NOT EXISTS created_by TEXT NOT NULL DEFAULT 'sistema'`;
       await sql`ALTER TABLE entries ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()`;
+      await sql`ALTER TABLE entries ADD COLUMN IF NOT EXISTS paid_amount_cents INTEGER NOT NULL DEFAULT 0`;
+      await sql`ALTER TABLE entries ADD COLUMN IF NOT EXISTS settlement_date TEXT`;
+      await sql`ALTER TABLE entries ADD COLUMN IF NOT EXISTS payment_method TEXT NOT NULL DEFAULT 'Não informado'`;
+      await sql`UPDATE entries SET paid_amount_cents = amount_cents, settlement_date = COALESCE(settlement_date, due_date) WHERE paid = TRUE AND paid_amount_cents = 0`;
       await sql`CREATE TABLE IF NOT EXISTS income_types (id SERIAL PRIMARY KEY, name TEXT NOT NULL UNIQUE)`;
       await sql`CREATE TABLE IF NOT EXISTS expense_types (id SERIAL PRIMARY KEY, name TEXT NOT NULL UNIQUE)`;
       await sql`INSERT INTO income_types (name) VALUES ('Vendas'), ('Serviços'), ('Comissões'), ('Outros') ON CONFLICT (name) DO NOTHING`;

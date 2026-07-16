@@ -43,6 +43,7 @@ export async function POST(request: Request) {
     const category = String(payload.category ?? "Outros").trim();
     const type: "income" | "expense" = payload.type === "expense" ? "expense" : "income";
     const dueDate = String(payload.dueDate ?? "");
+    const paymentMethod = String(payload.paymentMethod ?? "Não informado").trim() || "Não informado";
     const installments = Math.max(1, Math.min(60, Number(payload.installments) || 1));
     const principalCents = parseMoney(payload.amount);
     const requestedInterest = payload.interestType === "simple" || payload.interestType === "compound" ? payload.interestType : "none";
@@ -59,7 +60,7 @@ export async function POST(request: Request) {
     const groupId = crypto.randomUUID();
     const base = Math.floor(totalCents / installments);
     const remainder = totalCents - base * installments;
-    const values: (typeof entries.$inferInsert)[] = Array.from({ length: installments }, (_, index) => ({ groupId, description, contact, category, type, amountCents: base + (index < remainder ? 1 : 0), dueDate: addMonths(dueDate, index), installment: index + 1, installments, interestType, interestRateBps, paid: false, createdBy: user.username }));
+    const values: (typeof entries.$inferInsert)[] = Array.from({ length: installments }, (_, index) => ({ groupId, description, contact, category, type, amountCents: base + (index < remainder ? 1 : 0), paidAmountCents: 0, dueDate: addMonths(dueDate, index), paymentMethod, installment: index + 1, installments, interestType, interestRateBps, paid: false, createdBy: user.username }));
     const created = await getDb().insert(entries).values(values).returning();
     return Response.json({ entries: created }, { status: 201 });
   } catch (error) {
