@@ -23,6 +23,7 @@ export const entries = pgTable("entries", {
   type: text("type", { enum: ["income", "expense"] }).notNull(),
   amountCents: integer("amount_cents").notNull(),
   paidAmountCents: integer("paid_amount_cents").notNull().default(0),
+  issueDate: text("issue_date").notNull(),
   dueDate: text("due_date").notNull(),
   settlementDate: text("settlement_date"),
   paymentMethod: text("payment_method").notNull().default("Não informado"),

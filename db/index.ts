@@ -59,6 +59,7 @@ export async function ensureDatabase() {
         type TEXT NOT NULL CHECK (type IN ('income', 'expense')),
         amount_cents INTEGER NOT NULL,
         paid_amount_cents INTEGER NOT NULL DEFAULT 0,
+        issue_date TEXT NOT NULL,
         due_date TEXT NOT NULL,
         settlement_date TEXT,
         payment_method TEXT NOT NULL DEFAULT 'Não informado',
@@ -75,6 +76,9 @@ export async function ensureDatabase() {
       await sql`ALTER TABLE entries ADD COLUMN IF NOT EXISTS paid_amount_cents INTEGER NOT NULL DEFAULT 0`;
       await sql`ALTER TABLE entries ADD COLUMN IF NOT EXISTS settlement_date TEXT`;
       await sql`ALTER TABLE entries ADD COLUMN IF NOT EXISTS payment_method TEXT NOT NULL DEFAULT 'Não informado'`;
+      await sql`ALTER TABLE entries ADD COLUMN IF NOT EXISTS issue_date TEXT`;
+      await sql`UPDATE entries SET issue_date = due_date WHERE issue_date IS NULL`;
+      await sql`ALTER TABLE entries ALTER COLUMN issue_date SET NOT NULL`;
       await sql`UPDATE entries SET paid_amount_cents = amount_cents, settlement_date = COALESCE(settlement_date, due_date) WHERE paid = TRUE AND paid_amount_cents = 0`;
       await sql`CREATE TABLE IF NOT EXISTS income_types (id SERIAL PRIMARY KEY, name TEXT NOT NULL UNIQUE)`;
       await sql`CREATE TABLE IF NOT EXISTS expense_types (id SERIAL PRIMARY KEY, name TEXT NOT NULL UNIQUE)`;

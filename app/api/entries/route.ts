@@ -42,6 +42,7 @@ export async function POST(request: Request) {
     const contact = String(payload.contact ?? "").trim();
     const category = String(payload.category ?? "Outros").trim();
     const type: "income" | "expense" = payload.type === "expense" ? "expense" : "income";
+    const issueDate = String(payload.issueDate ?? "");
     const dueDate = String(payload.dueDate ?? "");
     const paymentMethod = String(payload.paymentMethod ?? "Não informado").trim() || "Não informado";
     const installments = Math.max(1, Math.min(60, Number(payload.installments) || 1));
@@ -56,11 +57,11 @@ export async function POST(request: Request) {
       : interestType === "compound"
         ? Math.round(principalCents * Math.pow(1 + rate, installments))
         : principalCents;
-    if (!description || !/^\d{4}-\d{2}-\d{2}$/.test(dueDate) || !Number.isFinite(principalCents) || principalCents <= 0) return Response.json({ error: "Preencha descrição, valor e vencimento corretamente." }, { status: 400 });
+    if (!description || !/^\d{4}-\d{2}-\d{2}$/.test(issueDate) || !/^\d{4}-\d{2}-\d{2}$/.test(dueDate) || !Number.isFinite(principalCents) || principalCents <= 0) return Response.json({ error: "Preencha descrição, valor, data de geração e vencimento corretamente." }, { status: 400 });
     const groupId = crypto.randomUUID();
     const base = Math.floor(totalCents / installments);
     const remainder = totalCents - base * installments;
-    const values: (typeof entries.$inferInsert)[] = Array.from({ length: installments }, (_, index) => ({ groupId, description, contact, category, type, amountCents: base + (index < remainder ? 1 : 0), paidAmountCents: 0, dueDate: addMonths(dueDate, index), paymentMethod, installment: index + 1, installments, interestType, interestRateBps, paid: false, createdBy: user.username }));
+    const values: (typeof entries.$inferInsert)[] = Array.from({ length: installments }, (_, index) => ({ groupId, description, contact, category, type, amountCents: base + (index < remainder ? 1 : 0), paidAmountCents: 0, issueDate, dueDate: addMonths(dueDate, index), paymentMethod, installment: index + 1, installments, interestType, interestRateBps, paid: false, createdBy: user.username }));
     const created = await getDb().insert(entries).values(values).returning();
     return Response.json({ entries: created }, { status: 201 });
   } catch (error) {
