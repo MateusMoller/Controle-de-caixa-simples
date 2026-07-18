@@ -4,7 +4,10 @@ import * as schema from "./schema";
 
 function createDb() {
   const url = process.env.DATABASE_URL;
-  if (!url) throw new Error("DATABASE_URL não está configurada. Conecte um banco Neon ao projeto na Vercel.");
+  if (!url)
+    throw new Error(
+      "DATABASE_URL não está configurada. Conecte um banco Neon ao projeto na Vercel.",
+    );
   return drizzle(neon(url), { schema });
 }
 
@@ -20,7 +23,10 @@ export async function ensureDatabase() {
   if (!initialization) {
     initialization = (async () => {
       const url = process.env.DATABASE_URL;
-      if (!url) throw new Error("DATABASE_URL não está configurada. Conecte um banco Neon ao projeto na Vercel.");
+      if (!url)
+        throw new Error(
+          "DATABASE_URL não está configurada. Conecte um banco Neon ao projeto na Vercel.",
+        );
       const sql = neon(url);
       await sql`CREATE TABLE IF NOT EXISTS users (
         id SERIAL PRIMARY KEY,
@@ -82,8 +88,14 @@ export async function ensureDatabase() {
       await sql`UPDATE entries SET paid_amount_cents = amount_cents, settlement_date = COALESCE(settlement_date, due_date) WHERE paid = TRUE AND paid_amount_cents = 0`;
       await sql`CREATE TABLE IF NOT EXISTS income_types (id SERIAL PRIMARY KEY, name TEXT NOT NULL UNIQUE)`;
       await sql`CREATE TABLE IF NOT EXISTS expense_types (id SERIAL PRIMARY KEY, name TEXT NOT NULL UNIQUE)`;
+      await sql`CREATE TABLE IF NOT EXISTS entry_descriptions (id SERIAL PRIMARY KEY, name TEXT NOT NULL UNIQUE)`;
+      await sql`CREATE TABLE IF NOT EXISTS entry_contacts (id SERIAL PRIMARY KEY, name TEXT NOT NULL UNIQUE)`;
       await sql`INSERT INTO income_types (name) VALUES ('Vendas'), ('Serviços'), ('Comissões'), ('Outros') ON CONFLICT (name) DO NOTHING`;
       await sql`INSERT INTO expense_types (name) VALUES ('Fornecedores'), ('Moradia'), ('Transporte'), ('Alimentação'), ('Saúde'), ('Lazer'), ('Impostos'), ('Outros') ON CONFLICT (name) DO NOTHING`;
+      await sql`INSERT INTO entry_descriptions (name) SELECT DISTINCT description FROM entries WHERE TRIM(description) <> '' ON CONFLICT (name) DO NOTHING`;
+      await sql`INSERT INTO entry_contacts (name) SELECT DISTINCT contact FROM entries WHERE TRIM(contact) <> '' ON CONFLICT (name) DO NOTHING`;
+      await sql`INSERT INTO entry_descriptions (name) VALUES ('Venda de produtos'), ('Compra de mercadorias'), ('Pagamento de serviço') ON CONFLICT (name) DO NOTHING`;
+      await sql`INSERT INTO entry_contacts (name) VALUES ('Não informado') ON CONFLICT (name) DO NOTHING`;
     })();
   }
   return initialization;
