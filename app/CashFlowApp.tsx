@@ -285,14 +285,8 @@ export function CashFlowApp({ view }: { view: View }) {
       String(form.get("paymentAmount") || "0"),
     );
     const paidAmountCents = settlementEntry.paidAmountCents + paymentCents;
-    if (
-      !Number.isFinite(paymentCents) ||
-      paymentCents <= 0 ||
-      paidAmountCents > settlementEntry.amountCents
-    )
-      return setError(
-        "Informe um valor válido, sem ultrapassar o saldo restante.",
-      );
+    if (!Number.isFinite(paymentCents) || paymentCents <= 0)
+      return setError("Informe um valor pago válido.");
     await updateSettlement(settlementEntry, {
       paidAmountCents,
       settlementDate: String(form.get("settlementDate")),
@@ -673,9 +667,18 @@ function Dashboard({
   const sevenDate = new Date(todayDate);
   sevenDate.setDate(sevenDate.getDate() + 7);
   const inSeven = sevenDate.toISOString().slice(0, 10);
-  const overdue = allEntries
-    .filter((e) => e.paidAmountCents < e.amountCents && e.dueDate < today)
-    .reduce((sum, e) => sum + e.amountCents - e.paidAmountCents, 0);
+  const overdueEntries = allEntries
+    .filter(
+      (e) =>
+        e.type === "expense" &&
+        e.paidAmountCents < e.amountCents &&
+        e.dueDate < today,
+    )
+    .sort((a, b) => a.dueDate.localeCompare(b.dueDate));
+  const overdue = overdueEntries.reduce(
+    (sum, e) => sum + e.amountCents - e.paidAmountCents,
+    0,
+  );
   const dueSoon = allEntries
     .filter(
       (e) =>
@@ -688,7 +691,7 @@ function Dashboard({
     ? Math.round((totals.realizedIncome / totals.income) * 100)
     : 0;
   const paymentRate = totals.expense
-    ? Math.round((totals.realizedExpense / totals.expense) * 100)
+    ? Math.min(100, Math.round((totals.realizedExpense / totals.expense) * 100))
     : 0;
   return (
     <div className="content">
@@ -703,13 +706,15 @@ function Dashboard({
             {money.format(totals.realizedIncome / 100)} já recebidos
           </small>
         </article>
-        <article>
+        <article className="paidHighlight">
           <div className="kpiTop">
             <span className="kpiIcon coral">↘</span>
-            <em>SAÍDAS PREVISTAS</em>
+            <em>SAÍDAS PREVISTAS / PAGAS</em>
           </div>
           <strong>{money.format(totals.expense / 100)}</strong>
-          <small>{money.format(totals.realizedExpense / 100)} já pagos</small>
+          <small className="paidTotal">
+            ✓ {money.format(totals.realizedExpense / 100)} efetivamente pagos
+          </small>
         </article>
         <article className="featured">
           <div className="kpiTop">
@@ -750,9 +755,10 @@ function Dashboard({
         </article>
       </section>
       <section className="spreadsheetKpis">
-        <article>
+        <article className="overdueKpi">
           <span>CONTAS VENCIDAS</span>
           <strong>{money.format(overdue / 100)}</strong>
+          <small>{overdueEntries.length} conta(s) aguardando pagamento</small>
         </article>
         <article>
           <span>VENCE EM 7 DIAS</span>
@@ -766,6 +772,20 @@ function Dashboard({
           <span>TAXA DE PAGAMENTO</span>
           <strong>{paymentRate}%</strong>
         </article>
+      </section>
+      <section className="panel overduePanel">
+        <PanelHead
+          title="Contas vencidas"
+          subtitle={`${overdueEntries.length} conta(s) não pagas até hoje · ${money.format(overdue / 100)} pendentes`}
+          action={<Link href="/lancamentos">Ver lançamentos →</Link>}
+        />
+        <LedgerTable
+          entries={overdueEntries.slice(0, 6)}
+          loading={loading}
+          onToggle={onToggle}
+          onEdit={onEdit}
+          onDelete={onDelete}
+        />
       </section>
       <section className="dashGrid">
         <article className="panel chartPanel">
@@ -1592,7 +1612,13 @@ function LedgerTable({
               return (
                 <tr
                   key={e.id}
-                  className={status === "Vencido" ? "overdueRow" : ""}
+                  className={
+                    e.paid
+                      ? "paidRow"
+                      : status === "Vencido"
+                        ? "overdueRow"
+                        : ""
+                  }
                 >
                   <td>
                     <label className="paymentCheck">
@@ -1642,7 +1668,12 @@ function LedgerTable({
                     </b>
                     {e.paidAmountCents > 0 && (
                       <small className="realizedValue">
-                        Realizado: {money.format(e.paidAmountCents / 100)}
+                        {e.type === "expense" ? "Pago" : "Recebido"}:{" "}
+                        {money.format(e.paidAmountCents / 100)}
+                        {e.type === "expense" &&
+                        e.paidAmountCents > e.amountCents
+                          ? ` · Juros: ${money.format((e.paidAmountCents - e.amountCents) / 100)}`
+                          : ""}
                       </small>
                     )}
                   </td>
@@ -1686,10 +1717,14 @@ function SettlementModal({
   const remaining = Math.max(0, entry.amountCents - entry.paidAmountCents);
   const isIncome = entry.type === "income";
   const today = new Date().toISOString().slice(0, 10);
-  const interest =
-    entry.interestType === "none"
-      ? "Sem juros"
-      : `Juros ${entry.interestType === "simple" ? "simples" : "compostos"} · ${(entry.interestRateBps / 100).toLocaleString("pt-BR")}% ao mês`;
+  const [paymentValue, setPaymentValue] = useState(
+    (remaining / 100).toFixed(2).replace(".", ","),
+  );
+  const paymentCents = parseMoneyInput(paymentValue);
+  const projectedPaid =
+    entry.paidAmountCents + (Number.isFinite(paymentCents) ? paymentCents : 0);
+  const interestCents = Math.max(0, projectedPaid - entry.amountCents);
+  const pendingCents = Math.max(0, entry.amountCents - projectedPaid);
 
   return (
     <div
@@ -1731,9 +1766,8 @@ function SettlementModal({
           <span>{entry.description}</span>
           <small>
             {entry.installments > 1
-              ? `Parcela ${entry.installment} de ${entry.installments} · `
-              : ""}
-            {interest}
+              ? `Parcela ${entry.installment} de ${entry.installments}`
+              : "Lançamento único"}
           </small>
         </div>
         {remaining > 0 ? (
@@ -1744,10 +1778,37 @@ function SettlementModal({
                 name="paymentAmount"
                 required
                 inputMode="decimal"
-                defaultValue={(remaining / 100).toFixed(2).replace(".", ",")}
+                value={paymentValue}
+                onChange={(event) => setPaymentValue(event.target.value)}
                 autoFocus
               />
             </label>
+            <div
+              className={`paymentCalculation ${interestCents > 0 ? "hasInterest" : pendingCents > 0 ? "hasPending" : "exact"}`}
+            >
+              <div>
+                <span>Valor previsto</span>
+                <b>{money.format(entry.amountCents / 100)}</b>
+              </div>
+              <div>
+                <span>Valor total pago</span>
+                <b>{money.format(projectedPaid / 100)}</b>
+              </div>
+              <div>
+                <span>
+                  {interestCents > 0
+                    ? "Juros / acréscimos"
+                    : pendingCents > 0
+                      ? "Saldo pendente"
+                      : "Diferença"}
+                </span>
+                <strong>
+                  {money.format(
+                    (interestCents > 0 ? interestCents : pendingCents) / 100,
+                  )}
+                </strong>
+              </div>
+            </div>
             <div className="formGrid">
               <label className="field">
                 <span>Dia do {isIncome ? "recebimento" : "pagamento"}</span>
@@ -1776,8 +1837,8 @@ function SettlementModal({
               </label>
             </div>
             <p className="settlementHint">
-              Se o valor for menor que o saldo, o lançamento ficará como
-              pagamento parcial.
+              Valores acima do previsto serão registrados como juros ou
+              acréscimos. Valores menores deixam saldo pendente.
             </p>
             <button className="primary submit">
               Confirmar {isIncome ? "recebimento" : "pagamento"}
@@ -1795,6 +1856,14 @@ function SettlementModal({
                 : "data não informada"}
               , via {entry.paymentMethod}.
             </p>
+            {!isIncome && entry.paidAmountCents > entry.amountCents && (
+              <p className="confirmedInterest">
+                Juros e acréscimos:{" "}
+                {money.format(
+                  (entry.paidAmountCents - entry.amountCents) / 100,
+                )}
+              </p>
+            )}
             <button className="reverseButton" onClick={onReverse}>
               Estornar valor realizado
             </button>
@@ -1903,7 +1972,9 @@ function EntryModal({
               ))}
             </select>
           </label>
-          <div className="formGrid">
+          <div
+            className={`formGrid ${entryKind === "expense" ? "singleField" : ""}`}
+          >
             <label className="field">
               <span>Valor previsto</span>
               <input
@@ -1918,19 +1989,25 @@ function EntryModal({
                 placeholder="0,00"
               />
             </label>
-            <label className="field">
-              <span>
-                Tipo de {entryKind === "income" ? "entrada" : "saída"}
-              </span>
-              <select name="category" defaultValue={entry?.category}>
-                {entry?.category && !options.includes(entry.category) && (
-                  <option>{entry.category}</option>
-                )}
-                {options.map((c) => (
-                  <option key={c}>{c}</option>
-                ))}
-              </select>
-            </label>
+            {entryKind === "income" ? (
+              <label className="field">
+                <span>Tipo de entrada</span>
+                <select name="category" defaultValue={entry?.category}>
+                  {entry?.category && !options.includes(entry.category) && (
+                    <option>{entry.category}</option>
+                  )}
+                  {options.map((c) => (
+                    <option key={c}>{c}</option>
+                  ))}
+                </select>
+              </label>
+            ) : (
+              <input
+                type="hidden"
+                name="category"
+                value={entry?.category || "Outros"}
+              />
+            )}
           </div>
           <div className="formGrid">
             <label className="field">
@@ -2001,43 +2078,6 @@ function EntryModal({
               />
             </label>
           </div>
-          {!entry && (
-            <>
-              <div className="interestBox">
-                <p>Juros do parcelamento</p>
-                <div className="formGrid">
-                  <label className="field">
-                    <span>Tipo de juros</span>
-                    <select name="interestType" defaultValue="none">
-                      <option value="none">Sem juros</option>
-                      <option value="simple">Juros simples</option>
-                      <option value="compound">Juros compostos</option>
-                    </select>
-                  </label>
-                  <label className="field">
-                    <span>Taxa ao mês (%)</span>
-                    <input
-                      name="interestRate"
-                      type="number"
-                      min="0"
-                      max="100"
-                      step="0.01"
-                      defaultValue="0"
-                      inputMode="decimal"
-                    />
-                  </label>
-                </div>
-                <small>
-                  Nos juros simples, a taxa incide sobre o principal. Nos
-                  compostos, incide sobre o saldo acumulado a cada mês.
-                </small>
-              </div>
-              <p className="splitHint">
-                O total com juros será dividido igualmente, preservando a soma
-                exata dos centavos.
-              </p>
-            </>
-          )}
           <button className="primary submit">
             {entry ? "Salvar alterações" : "Salvar lançamento"}
           </button>

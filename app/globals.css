@@ -329,6 +329,20 @@ button {
 .featured small {
   color: #a9c0ba;
 }
+.kpis article.paidHighlight {
+  border-color: #bcdccf;
+  background: #f7fcf9;
+}
+.paidTotal {
+  display: inline-flex !important;
+  align-items: center;
+  margin-top: 2px;
+  padding: 5px 8px;
+  border-radius: 20px;
+  background: var(--mint);
+  color: var(--green) !important;
+  font-weight: 800;
+}
 .dashGrid {
   display: grid;
   grid-template-columns: 1.65fr 1fr;
@@ -764,13 +778,8 @@ td.expense {
   grid-template-columns: 1fr 1fr;
   gap: 13px;
 }
-.splitHint {
-  margin: -2px 0 18px;
-  padding: 10px 12px;
-  background: #edf4f0;
-  border-radius: 8px;
-  color: var(--green);
-  font-size: 11px;
+.formGrid.singleField {
+  grid-template-columns: 1fr;
 }
 .submit {
   width: 100%;
@@ -1122,28 +1131,6 @@ td.expense {
     gap: 14px;
     flex-direction: column;
   }
-}
-.interestBox {
-  margin: 2px 0 16px;
-  padding: 14px 14px 10px;
-  border: 1px solid #dbe6e0;
-  background: #f3f8f5;
-  border-radius: 10px;
-}
-.interestBox > p {
-  margin: 0 0 12px;
-  color: var(--ink);
-  font-size: 12px;
-  font-weight: 800;
-}
-.interestBox .field {
-  margin-bottom: 9px;
-}
-.interestBox > small {
-  display: block;
-  color: var(--muted);
-  font-size: 10px;
-  line-height: 1.45;
 }
 .filterBar {
   display: grid;
@@ -1578,6 +1565,30 @@ td.expense {
   border: 1px solid var(--line);
   border-radius: 12px;
 }
+.spreadsheetKpis article.overdueKpi {
+  background: #fff8f5;
+  border-color: #efc7bc;
+}
+.spreadsheetKpis .overdueKpi span,
+.spreadsheetKpis .overdueKpi strong {
+  color: #b34e38;
+}
+.spreadsheetKpis article small {
+  display: block;
+  margin-top: 5px;
+  color: var(--muted);
+  font-size: 9px;
+}
+.overduePanel {
+  margin-top: 16px;
+  border-color: #efd7d0;
+}
+.overduePanel .panelHead {
+  padding-bottom: 15px;
+}
+.overduePanel .empty {
+  padding: 24px;
+}
 .spreadsheetKpis span {
   display: block;
   color: var(--muted);
@@ -1679,6 +1690,44 @@ td.expense {
   color: var(--muted);
   font-size: 10px;
 }
+.paymentCalculation {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+  margin: -2px 0 16px;
+  padding: 12px;
+  border-radius: 10px;
+  background: #f1f5f2;
+}
+.paymentCalculation div {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+.paymentCalculation span {
+  color: var(--muted);
+  font-size: 8px;
+  font-weight: 800;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+}
+.paymentCalculation b,
+.paymentCalculation strong {
+  font-size: 12px;
+}
+.paymentCalculation.hasInterest {
+  background: #fff4df;
+  border: 1px solid #ead29c;
+}
+.paymentCalculation.hasInterest strong {
+  color: #9b6514;
+}
+.paymentCalculation.exact strong {
+  color: var(--green);
+}
+.paymentCalculation.hasPending strong {
+  color: var(--coral);
+}
 .settlementHint {
   margin: -2px 0 16px;
 }
@@ -1691,6 +1740,10 @@ td.expense {
 .settlementComplete p {
   color: var(--muted);
   font-size: 12px;
+}
+.settlementComplete .confirmedInterest {
+  color: #9b6514;
+  font-weight: 800;
 }
 .reverseButton {
   border: 1px solid #e4b6aa;
@@ -1712,6 +1765,13 @@ td.expense {
   }
   .settlementSummary strong {
     margin: 0;
+  }
+  .paymentCalculation {
+    grid-template-columns: 1fr;
+  }
+  .paymentCalculation div {
+    flex-direction: row;
+    justify-content: space-between;
   }
 }
 .settlementStatus.recebido,
@@ -1738,6 +1798,15 @@ td.expense {
   color: var(--muted);
   font-size: 9px;
   font-weight: 400;
+}
+.paidRow {
+  background: #f5fbf7;
+}
+.paidRow td:first-child {
+  box-shadow: inset 3px 0 var(--green);
+}
+.paidRow td > b {
+  color: var(--green);
 }
 @media (max-width: 760px) {
   .spreadsheetKpis {

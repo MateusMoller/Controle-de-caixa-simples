@@ -37,10 +37,7 @@ export async function PATCH(
     );
   const paidAmountCents = Math.max(
     0,
-    Math.min(
-      current.amountCents,
-      Math.round(Number(payload.paidAmountCents) || 0),
-    ),
+    Math.round(Number(payload.paidAmountCents) || 0),
   );
   const [entry] = await getDb()
     .update(entries)
@@ -98,7 +95,7 @@ export async function PUT(
       { error: "Lançamento não encontrado" },
       { status: 404 },
     );
-  const paidAmountCents = Math.min(current.paidAmountCents, amountCents);
+  const paidAmountCents = current.paidAmountCents;
   const [entry] = await getDb()
     .update(entries)
     .set({

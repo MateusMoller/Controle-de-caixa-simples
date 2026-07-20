@@ -4,19 +4,20 @@ import { entries } from "../../../db/schema";
 import { requireApiUser } from "../../../lib/auth";
 
 function parseMoney(value: unknown) {
-  const normalized = String(value ?? "").trim().replace(/\s/g, "").replace(/\.(?=\d{3}(?:\D|$))/g, "").replace(",", ".");
+  const normalized = String(value ?? "")
+    .trim()
+    .replace(/\s/g, "")
+    .replace(/\.(?=\d{3}(?:\D|$))/g, "")
+    .replace(",", ".");
   return Math.round(Number(normalized) * 100);
-}
-
-function parseRate(value: unknown) {
-  const rate = Number(String(value ?? "0").trim().replace(",", "."));
-  return Number.isFinite(rate) ? Math.max(0, Math.min(100, rate)) : 0;
 }
 
 function addMonths(dateText: string, offset: number) {
   const [year, month, day] = dateText.split("-").map(Number);
   const date = new Date(Date.UTC(year, month - 1 + offset, 1));
-  const lastDay = new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth() + 1, 0)).getUTCDate();
+  const lastDay = new Date(
+    Date.UTC(date.getUTCFullYear(), date.getUTCMonth() + 1, 0),
+  ).getUTCDate();
   return `${date.getUTCFullYear()}-${String(date.getUTCMonth() + 1).padStart(2, "0")}-${String(Math.min(day, lastDay)).padStart(2, "0")}`;
 }
 
@@ -24,11 +25,23 @@ export async function GET() {
   try {
     await ensureDatabase();
     const user = await requireApiUser();
-    if (!user) return Response.json({ error: "Não autorizado." }, { status: 401 });
-    const rows = await getDb().select().from(entries).orderBy(asc(entries.dueDate), asc(entries.id));
+    if (!user)
+      return Response.json({ error: "Não autorizado." }, { status: 401 });
+    const rows = await getDb()
+      .select()
+      .from(entries)
+      .orderBy(asc(entries.dueDate), asc(entries.id));
     return Response.json({ entries: rows });
   } catch (error) {
-    return Response.json({ error: error instanceof Error ? error.message : "Erro ao carregar lançamentos" }, { status: 500 });
+    return Response.json(
+      {
+        error:
+          error instanceof Error
+            ? error.message
+            : "Erro ao carregar lançamentos",
+      },
+      { status: 500 },
+    );
   }
 }
 
@@ -36,35 +49,71 @@ export async function POST(request: Request) {
   try {
     await ensureDatabase();
     const user = await requireApiUser();
-    if (!user) return Response.json({ error: "Não autorizado." }, { status: 401 });
-    const payload = await request.json() as Record<string, unknown>;
+    if (!user)
+      return Response.json({ error: "Não autorizado." }, { status: 401 });
+    const payload = (await request.json()) as Record<string, unknown>;
     const description = String(payload.description ?? "").trim();
     const contact = String(payload.contact ?? "").trim();
     const category = String(payload.category ?? "Outros").trim();
-    const type: "income" | "expense" = payload.type === "expense" ? "expense" : "income";
+    const type: "income" | "expense" =
+      payload.type === "expense" ? "expense" : "income";
     const issueDate = String(payload.issueDate ?? "");
     const dueDate = String(payload.dueDate ?? "");
-    const paymentMethod = String(payload.paymentMethod ?? "Não informado").trim() || "Não informado";
-    const installments = Math.max(1, Math.min(60, Number(payload.installments) || 1));
+    const paymentMethod =
+      String(payload.paymentMethod ?? "Não informado").trim() ||
+      "Não informado";
+    const installments = Math.max(
+      1,
+      Math.min(60, Number(payload.installments) || 1),
+    );
     const principalCents = parseMoney(payload.amount);
-    const requestedInterest = payload.interestType === "simple" || payload.interestType === "compound" ? payload.interestType : "none";
-    const interestType: "none" | "simple" | "compound" = installments > 1 ? requestedInterest : "none";
-    const monthlyRate = interestType === "none" ? 0 : parseRate(payload.interestRate);
-    const interestRateBps = Math.round(monthlyRate * 100);
-    const rate = monthlyRate / 100;
-    const totalCents = interestType === "simple"
-      ? Math.round(principalCents * (1 + rate * installments))
-      : interestType === "compound"
-        ? Math.round(principalCents * Math.pow(1 + rate, installments))
-        : principalCents;
-    if (!description || !/^\d{4}-\d{2}-\d{2}$/.test(issueDate) || !/^\d{4}-\d{2}-\d{2}$/.test(dueDate) || !Number.isFinite(principalCents) || principalCents <= 0) return Response.json({ error: "Preencha descrição, valor, data de geração e vencimento corretamente." }, { status: 400 });
+    if (
+      !description ||
+      !/^\d{4}-\d{2}-\d{2}$/.test(issueDate) ||
+      !/^\d{4}-\d{2}-\d{2}$/.test(dueDate) ||
+      !Number.isFinite(principalCents) ||
+      principalCents <= 0
+    )
+      return Response.json(
+        {
+          error:
+            "Preencha descrição, valor, data de geração e vencimento corretamente.",
+        },
+        { status: 400 },
+      );
     const groupId = crypto.randomUUID();
-    const base = Math.floor(totalCents / installments);
-    const remainder = totalCents - base * installments;
-    const values: (typeof entries.$inferInsert)[] = Array.from({ length: installments }, (_, index) => ({ groupId, description, contact, category, type, amountCents: base + (index < remainder ? 1 : 0), paidAmountCents: 0, issueDate, dueDate: addMonths(dueDate, index), paymentMethod, installment: index + 1, installments, interestType, interestRateBps, paid: false, createdBy: user.username }));
+    const base = Math.floor(principalCents / installments);
+    const remainder = principalCents - base * installments;
+    const values: (typeof entries.$inferInsert)[] = Array.from(
+      { length: installments },
+      (_, index) => ({
+        groupId,
+        description,
+        contact,
+        category,
+        type,
+        amountCents: base + (index < remainder ? 1 : 0),
+        paidAmountCents: 0,
+        issueDate,
+        dueDate: addMonths(dueDate, index),
+        paymentMethod,
+        installment: index + 1,
+        installments,
+        interestType: "none",
+        interestRateBps: 0,
+        paid: false,
+        createdBy: user.username,
+      }),
+    );
     const created = await getDb().insert(entries).values(values).returning();
     return Response.json({ entries: created }, { status: 201 });
   } catch (error) {
-    return Response.json({ error: error instanceof Error ? error.message : "Erro ao salvar lançamento" }, { status: 500 });
+    return Response.json(
+      {
+        error:
+          error instanceof Error ? error.message : "Erro ao salvar lançamento",
+      },
+      { status: 500 },
+    );
   }
 }
