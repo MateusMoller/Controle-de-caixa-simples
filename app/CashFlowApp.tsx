@@ -130,13 +130,57 @@ export function CashFlowApp({ view }: { view: View }) {
       .catch(() => setError("Não foi possível carregar os dados agora."))
       .finally(() => setLoading(false));
   }, []);
-  const monthEntries = useMemo(
-    () => entries.filter((e) => e.dueDate.startsWith(month)),
-    [entries, month],
-  );
+  const dashboardEntries = useMemo(() => {
+    const term = search.trim().toLocaleLowerCase("pt-BR");
+    const today = new Date();
+    let startDate = "";
+    let endDate = "";
+    if (periodFilter === "month") {
+      startDate = `${month}-01`;
+      endDate = monthEnd(month);
+    } else if (periodFilter === "30days" || periodFilter === "90days") {
+      const days = periodFilter === "30days" ? 29 : 89;
+      startDate = isoDate(
+        new Date(today.getFullYear(), today.getMonth(), today.getDate() - days),
+      );
+      endDate = isoDate(today);
+    } else if (periodFilter === "year") {
+      startDate = `${today.getFullYear()}-01-01`;
+      endDate = `${today.getFullYear()}-12-31`;
+    } else if (periodFilter === "custom") {
+      startDate = customStartDate;
+      endDate = customEndDate;
+    }
+    return entries
+      .filter(
+        (entry) =>
+          (!startDate || entry.dueDate >= startDate) &&
+          (!endDate || entry.dueDate <= endDate),
+      )
+      .filter(
+        (entry) =>
+          categoryFilter === "all" || entry.category === categoryFilter,
+      )
+      .filter(
+        (entry) =>
+          !term ||
+          `${entry.description} ${entry.contact} ${entry.category}`
+            .toLocaleLowerCase("pt-BR")
+            .includes(term),
+      )
+      .sort((a, b) => a.dueDate.localeCompare(b.dueDate));
+  }, [
+    entries,
+    month,
+    periodFilter,
+    customStartDate,
+    customEndDate,
+    search,
+    categoryFilter,
+  ]);
   const totals = useMemo(
     () =>
-      monthEntries.reduce(
+      dashboardEntries.reduce(
         (a, e) => {
           a[e.type] += e.amountCents;
           a.paid += e.paidAmountCents;
@@ -161,71 +205,26 @@ export function CashFlowApp({ view }: { view: View }) {
           realizedExpense: 0,
         },
       ),
-    [monthEntries],
+    [dashboardEntries],
   );
   const visible = useMemo(() => {
-    const term = search.trim().toLocaleLowerCase("pt-BR");
-    const today = new Date();
-    let startDate = "";
-    let endDate = "";
-    if (periodFilter === "month") {
-      startDate = `${month}-01`;
-      endDate = monthEnd(month);
-    } else if (periodFilter === "30days" || periodFilter === "90days") {
-      const days = periodFilter === "30days" ? 29 : 89;
-      const start = new Date(
-        today.getFullYear(),
-        today.getMonth(),
-        today.getDate() - days,
-      );
-      startDate = isoDate(start);
-      endDate = isoDate(today);
-    } else if (periodFilter === "year") {
-      startDate = `${today.getFullYear()}-01-01`;
-      endDate = `${today.getFullYear()}-12-31`;
-    } else if (periodFilter === "custom") {
-      startDate = customStartDate;
-      endDate = customEndDate;
-    }
-    return entries
-      .filter(
-        (e) =>
-          (!startDate || e.dueDate >= startDate) &&
-          (!endDate || e.dueDate <= endDate),
-      )
+    return dashboardEntries
       .filter(
         (e) =>
           filter === "all" ||
           (filter === "pending" ? !e.paid : e.type === filter),
       )
-      .filter((e) => categoryFilter === "all" || e.category === categoryFilter)
-      .filter(
-        (e) =>
-          !term ||
-          `${e.description} ${e.contact} ${e.category}`
-            .toLocaleLowerCase("pt-BR")
-            .includes(term),
-      )
       .sort((a, b) => a.dueDate.localeCompare(b.dueDate));
-  }, [
-    entries,
-    month,
-    periodFilter,
-    customStartDate,
-    customEndDate,
-    filter,
-    search,
-    categoryFilter,
-  ]);
+  }, [dashboardEntries, filter]);
   const categoryTotals = useMemo(() => {
     const map = new Map<string, number>();
-    monthEntries
+    dashboardEntries
       .filter((e) => e.type === "expense")
       .forEach((e) =>
         map.set(e.category, (map.get(e.category) || 0) + e.amountCents),
       );
     return [...map].sort((a, b) => b[1] - a[1]);
-  }, [monthEntries]);
+  }, [dashboardEntries]);
   const evolution = useMemo(
     () =>
       Array.from({ length: 6 }, (_, i) => {
@@ -452,13 +451,27 @@ export function CashFlowApp({ view }: { view: View }) {
             evolution={evolution}
             maxChart={maxChart}
             categories={categoryTotals}
-            entries={monthEntries}
+            entries={dashboardEntries}
             allEntries={entries}
             month={month}
             loading={loading}
             onToggle={togglePaid}
             onEdit={editEntry}
             onDelete={deleteEntry}
+            categoryOptions={[
+              ...movementTypes.income,
+              ...movementTypes.expense,
+            ].map((item) => item.name)}
+            search={search}
+            setSearch={setSearch}
+            categoryFilter={categoryFilter}
+            setCategoryFilter={setCategoryFilter}
+            periodFilter={periodFilter}
+            setPeriodFilter={setPeriodFilter}
+            customStartDate={customStartDate}
+            setCustomStartDate={setCustomStartDate}
+            customEndDate={customEndDate}
+            setCustomEndDate={setCustomEndDate}
           />
         )}
         {view === "entries" && (
@@ -624,6 +637,17 @@ function Dashboard({
   onToggle,
   onEdit,
   onDelete,
+  categoryOptions,
+  search,
+  setSearch,
+  categoryFilter,
+  setCategoryFilter,
+  periodFilter,
+  setPeriodFilter,
+  customStartDate,
+  setCustomStartDate,
+  customEndDate,
+  setCustomEndDate,
 }: {
   totals: {
     income: number;
@@ -646,6 +670,17 @@ function Dashboard({
   onToggle: (e: Entry) => void;
   onEdit: (e: Entry) => void;
   onDelete: (e: Entry) => void;
+  categoryOptions: string[];
+  search: string;
+  setSearch: (value: string) => void;
+  categoryFilter: string;
+  setCategoryFilter: (value: string) => void;
+  periodFilter: PeriodFilter;
+  setPeriodFilter: (value: PeriodFilter) => void;
+  customStartDate: string;
+  setCustomStartDate: (value: string) => void;
+  customEndDate: string;
+  setCustomEndDate: (value: string) => void;
 }) {
   const [todayDate] = useState(() => new Date());
   const future = allEntries
@@ -667,7 +702,7 @@ function Dashboard({
   const sevenDate = new Date(todayDate);
   sevenDate.setDate(sevenDate.getDate() + 7);
   const inSeven = sevenDate.toISOString().slice(0, 10);
-  const overdueEntries = allEntries
+  const overdueEntries = entries
     .filter(
       (e) =>
         e.type === "expense" &&
@@ -679,7 +714,7 @@ function Dashboard({
     (sum, e) => sum + e.amountCents - e.paidAmountCents,
     0,
   );
-  const dueSoon = allEntries
+  const dueSoon = entries
     .filter(
       (e) =>
         e.paidAmountCents < e.amountCents &&
@@ -693,8 +728,88 @@ function Dashboard({
   const paymentRate = totals.expense
     ? Math.min(100, Math.round((totals.realizedExpense / totals.expense) * 100))
     : 0;
+  const hasDashboardFilters =
+    search !== "" || categoryFilter !== "all" || periodFilter !== "month";
+  function clearDashboardFilters() {
+    setSearch("");
+    setCategoryFilter("all");
+    setPeriodFilter("month");
+    setCustomStartDate("");
+    setCustomEndDate("");
+  }
   return (
     <div className="content">
+      <section className="panel dashboardFilters">
+        <div className="filterBar">
+          <label className="searchField">
+            <span>⌕</span>
+            <input
+              value={search}
+              onChange={(event) => setSearch(event.target.value)}
+              placeholder="Buscar descrição ou contato"
+              aria-label="Buscar no dashboard"
+            />
+          </label>
+          <label className="categorySelect">
+            <span>Categoria</span>
+            <select
+              value={categoryFilter}
+              onChange={(event) => setCategoryFilter(event.target.value)}
+            >
+              <option value="all">Todas</option>
+              {[...new Set(categoryOptions)].map((category) => (
+                <option key={category}>{category}</option>
+              ))}
+            </select>
+          </label>
+          <label className="categorySelect periodSelect">
+            <span>Período de vencimento</span>
+            <select
+              value={periodFilter}
+              onChange={(event) =>
+                setPeriodFilter(event.target.value as PeriodFilter)
+              }
+            >
+              <option value="month">Mês selecionado</option>
+              <option value="30days">Últimos 30 dias</option>
+              <option value="90days">Últimos 90 dias</option>
+              <option value="year">Este ano</option>
+              <option value="all">Todo o período</option>
+              <option value="custom">Personalizado</option>
+            </select>
+          </label>
+          <div className="filterResult">
+            <b>{entries.length}</b>{" "}
+            {entries.length === 1 ? "resultado" : "resultados"}
+            {hasDashboardFilters && (
+              <button onClick={clearDashboardFilters}>Limpar</button>
+            )}
+          </div>
+        </div>
+        {periodFilter === "custom" && (
+          <div className="customPeriod">
+            <label>
+              <span>Vencimento inicial</span>
+              <input
+                type="date"
+                value={customStartDate}
+                max={customEndDate || undefined}
+                onChange={(event) => setCustomStartDate(event.target.value)}
+              />
+            </label>
+            <span className="periodArrow">até</span>
+            <label>
+              <span>Vencimento final</span>
+              <input
+                type="date"
+                value={customEndDate}
+                min={customStartDate || undefined}
+                onChange={(event) => setCustomEndDate(event.target.value)}
+              />
+            </label>
+          </div>
+        )}
+      </section>
       <section className="kpis">
         <article>
           <div className="kpiTop">

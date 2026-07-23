@@ -1141,6 +1141,16 @@ td.expense {
   background: #fafbf8;
   border-bottom: 1px solid var(--line);
 }
+.dashboardFilters {
+  margin-bottom: 16px;
+}
+.dashboardFilters .filterBar {
+  border-bottom: 0;
+}
+.dashboardFilters .customPeriod {
+  border-top: 1px solid var(--line);
+  border-bottom: 0;
+}
 .customPeriod {
   display: flex;
   align-items: end;
